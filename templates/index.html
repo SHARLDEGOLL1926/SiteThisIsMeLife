@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1>Записи в блоге</h1>
-{% for item in news%}
+<form>
+    <input type="text" name="text" class="search" placeholder="Поиск товаров и услуг">
+    <input type="submit" name="submit" class="submit" value="Поиск">
+</form>
+<h1>Список магазинов</h1>
+{% for item in shop%}
 <div class="col-md6 border rounded">
-    <h2>{{item.title}}</h2>
+    <a class="navbar-brand" href="/api_shops/{{ item.coordinats }}/<{{ item.title }}" style="color: black">{{item.title}}</a>
     <div>
         {{item.content}}
     </div>
@@ -15,10 +19,10 @@
 
 {% if current_user.is_authenticated and current_user == item.user %}
     <div>
-        <a href="/news/{{ item.id }}" class="btn btn-warning">
+        <a href="/shops/{{ item.id }}" class="btn btn-warning">
             Изменить
         </a>
-        <a href="/news_delete/{{ item.id }}" class="btn btn-danger">
+        <a href="/shops_delete/{{ item.id }}" class="btn btn-danger">
             Удалить
         </a>
     </div>
