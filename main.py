@@ -1,11 +1,14 @@
 from flask import Flask, render_template, redirect, abort, request
 from data import db_session
 from data.users import User
-from data.news import News
+from data.shops import Shop
 from forms.user import RegisterForm
 from forms.login import LoginForm
-from forms.news import NewsForm
+from forms.shops import ShopsForm
 from flask_login import LoginManager, login_user, login_required, current_user, logout_user
+import requests
+from io import BytesIO
+from PIL import Image
 
 
 app = Flask(__name__)
@@ -69,67 +72,107 @@ def reqister():
     return render_template('register.html', title='Регистрация', form=form)
 
 
-@app.route('/news',  methods=['GET', 'POST'])
+@app.route('/shops',  methods=['GET', 'POST'])
 @login_required
-def add_news():
-    form = NewsForm()
+def add_shops():
+    form = ShopsForm()
     if form.validate_on_submit():
         db_sess = db_session.create_session()
-        news = News()
-        news.title = form.title.data
-        news.content = form.content.data
-        news.is_private = form.is_private.data
-        current_user.news.append(news)
+        shop = Shop()
+        shop.title = form.title.data
+        shop.content = form.content.data
+        shop.coordinats = form.coordinats.data
+        current_user.shop.append(shop)
         db_sess.merge(current_user)
         db_sess.commit()
         return redirect('/')
-    return render_template('news.html', title='Добавление новости',
+    return render_template('shop.html', title='Добавление магазина',
                            form=form)
 
 
-@app.route('/news/<int:id>', methods=['GET', 'POST'])
+@app.route('/shops/<int:id>', methods=['GET', 'POST'])
 @login_required
-def edit_news(id):
-    form = NewsForm()
+def edit_shops(id):
+    form = ShopsForm()
     if request.method == "GET":
         db_sess = db_session.create_session()
-        news = db_sess.query(News).filter(News.id == id,
-                                          News.user == current_user
-                                          ).first()
-        if news:
-            form.title.data = news.title
-            form.content.data = news.content
-            form.is_private.data = news.is_private
+        shops = db_sess.query(Shop).filter(Shop.id == id,
+                                           Shop.user == current_user
+                                           ).first()
+        if shops:
+            form.title.data = shops.title
+            form.content.data = shops.content
+            form.coordinats.data = shops.coordinats
         else:
             abort(404)
     if form.validate_on_submit():
         db_sess = db_session.create_session()
-        news = db_sess.query(News).filter(News.id == id,
-                                          News.user == current_user
-                                          ).first()
-        if news:
-            news.title = form.title.data
-            news.content = form.content.data
-            news.is_private = form.is_private.data
+        shops = db_sess.query(Shop).filter(Shop.id == id,
+                                           Shop.user == current_user
+                                           ).first()
+        if shops:
+            shops.title = form.title.data
+            shops.content = form.content.data
+            shops.coordinats = form.coordinats.data
             db_sess.commit()
             return redirect('/')
         else:
             abort(404)
-    return render_template('news.html',
-                           title='Редактирование новости',
+    return render_template('shop.html',
+                           title='Редактирование магазина',
                            form=form
                            )
+
+
+@app.route('/shops_delete/<int:id>', methods=['GET', 'POST'])
+@login_required
+def delete_shops(id):
+    return render_template("index.html", title="Удалить", )
+
+
+@app.route('/?text=<text>&submit=<submit>#', methods=['GET', 'POST'])
+@login_required
+def find_shops(text):
+    return render_template("index.html", title="Удалить", )
+
+
+@app.route('/api_shops/<address>/<title>', methods=['GET', 'POST'])
+@login_required
+def api_shops(address, title):
+    toponym_to_find = address
+    geocoder_api_server = "http://geocode-maps.yandex.ru/1.x/"
+    geocoder_params = {
+        "apikey": "40d1649f-0493-4b70-98ba-98533de7710b",
+        "geocode": toponym_to_find,
+        "format": "json"}
+    response = requests.get(geocoder_api_server, params=geocoder_params)
+    if not response:
+        pass
+    json_response = response.json()
+    toponym = json_response["response"]["GeoObjectCollection"]["featureMember"][0]["GeoObject"]
+    toponym_coodrinates = toponym["Point"]["pos"]
+    toponym_longitude, toponym_lattitude = toponym_coodrinates.split(" ")
+    delta = "0.005"
+    map_params = {
+        "ll": ",".join([toponym_longitude, toponym_lattitude]),
+        "spn": ",".join([delta, delta]),
+        "l": "map"
+    }
+    map_api_server = "http://static-maps.yandex.ru/1.x/"
+    response = requests.get(map_api_server, params=map_params)
+    img = Image.open(BytesIO(response.content))
+    return render_template("api_shops.html", img=img, title=title)
 
 
 @app.route("/")
 def index():
     db_sess = db_session.create_session()
     if current_user.is_authenticated:
-        news = db_sess.query(News).filter(
-            (News.user == current_user) | (News.is_private != True))
+        shop = db_sess.query(Shop).filter(
+            Shop.user == current_user)
     else:
-        news = db_sess.query(News).filter(News.is_private != True)
-    return render_template("index.html", news=news)
+        shop = db_sess.query(Shop)
+    return render_template("index.html", shop=shop)
 
 
 def main():
